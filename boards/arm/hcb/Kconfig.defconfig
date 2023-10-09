@@ -1,0 +1,10 @@
+# HCB board configuration
+
+# Copyright (c) 2017 I-SENSE group of ICCS
+# SPDX-License-Identifier: Apache-2.0
+
+if BOARD_HCB
+
+config BOARD
+	default "hcb"
+endif # BOARD_HCB

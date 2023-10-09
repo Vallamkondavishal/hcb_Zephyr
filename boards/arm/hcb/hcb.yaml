@@ -1,0 +1,15 @@
+identifier: hcb
+name: HCB
+type: mcu
+arch: arm
+toolchain:
+  - zephyr
+  - gnuarmemb
+ram: 40
+flash: 256
+supported:
+  - gpio
+  - spi
+  - usb_device
+  - pwm
+  - can

@@ -1,0 +1,88 @@
+/*
+ * Copyright (c) 2017 I-SENSE group of ICCS
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+#include <st/f3/stm32f303Xc.dtsi>
+
+/ {
+	model = "Swhard HCB board";
+	compatible = "swhard,hcb", "st,stm32f303";
+
+	chosen {
+		zephyr,console = &usart1;
+		zephyr,shell-uart = &usart1;
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash0;
+		zephyr,can-primary = &can1;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+		mcu_alive_0: mcu_alive0 {
+			gpios = <&gpioc 8 GPIO_ACTIVE_HIGH>;
+			label = "MCU alive";
+		};
+	};
+
+	pwmleds {
+		compatible = "pwm-leds";	
+
+
+	};
+
+	aliases {
+		ledalive = &mcu_alive_0;
+		
+		can-primary = &can1;
+	};
+
+};
+
+&timers2 {
+	status = "okay";
+
+	pwm {
+		status = "okay";
+	};
+};
+
+// TIM -> PWM_DEVICE
+&timers1 {
+	status = "okay";
+
+	pwm {
+		status = "okay";
+	};
+};
+
+// TIM -> PWM_DEVICE
+&timers8 {
+	status = "okay";
+
+	pwm {
+		status = "okay";
+	};
+};
+
+
+&usart1 {
+	current-speed = <115200>;
+	status = "okay";
+};
+
+&spi1 {
+	status = "okay";
+};
+
+&usb {
+	status = "ok";
+};
+
+&can1 {
+	status = "ok";
+	bus-speed = <500000>;
+	sjw = <1>;
+};
