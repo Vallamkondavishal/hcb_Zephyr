@@ -37,20 +37,25 @@
 
 uint64_t current_ms(void)
 {
+  // Variables to store milliseconds (ms), seconds (s), and a timespec structure
   long ms;  // Milliseconds
   time_t s; // Seconds
   struct timespec spec;
-
+  
+  // Get the current time using CLOCK_REALTIME clock
   clock_gettime(CLOCK_REALTIME, &spec);
 
   s = spec.tv_sec;
   ms = round(spec.tv_nsec / 1.0e6); // Convert nanoseconds to milliseconds
+
+   // If milliseconds exceed 999, increment seconds and reset milliseconds to 0
   if (ms > 999)
   {
     s++;
     ms = 0;
   }
 
+  // Return the total time in milliseconds (seconds * 1000 + milliseconds)
   return s * 1000 + ms;
 }
 
@@ -82,17 +87,26 @@ static const uint8_t CRC_TABLE[256] = { 0x00, 0x07, 0x0E, 0x09, 0x1C, 0x1B,
 
 static uint8_t crc8ccitt(const void* data, size_t size)
 {
+  // Initialize the CRC value to 0
   uint8_t val = 0;
-
+  
+  // Cast the data pointer to a uint8_t pointer
   uint8_t* pos = (uint8_t*)data;
+
+  // Calculate the end pointer based on the size of the data
   uint8_t* end = pos + size;
 
+  // Iterate over each byte in the data
   while (pos < end)
   {
+    // XOR the current CRC value with the value from the CRC_TABLE
     val = CRC_TABLE[val ^ *pos];
+
+    // Move to the next byte in the data
     pos++;
   }
-
+  
+  // Return the final CRC value
   return val;
 }
 
