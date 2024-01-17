@@ -110,10 +110,13 @@ static uint8_t crc8ccitt(const void* data, size_t size)
   return val;
 }
 
+
+
+
 //===============================================================================
 
 /**
- * @brief
+ * @brief Sends a "hello" command to the device.
  *
  * @param [in]  Handle File descriptor for the device
  * @param [out] Version the protocol version
@@ -121,71 +124,95 @@ static uint8_t crc8ccitt(const void* data, size_t size)
  */
 int hcb_send_hello(void* handle)
 {
+  // Create a hello command message
   hcb_msg_command_t message = { .header.report_id = 2,
     .header.message_id = HCB_ID_COMMAND,
     .header.byte_count = sizeof(hcb_msg_command_t),
     .header.crc = 0 };
 
+  // Set the command type to HCB_CMD_HELLO
   message.command = HCB_CMD_HELLO;
-
+  
+  // Convert the message to a protocol structure
   hcb_protocol_t* ptr = (hcb_protocol_t*)&message;
-
+  
+  // Calculate CRC (Cyclic Redundancy Check) for the message
   uint8_t crc2 = crc8ccitt(ptr->raw, ptr->header.byte_count);
   message.header.crc = crc2;
-
+  
+  // Send the message to the device using the HID (Human Interface Device) write function
   return hid_write(handle, ptr->raw, message.header.byte_count);
 }
 
+
+
+
+
 int hcb_set(void* handle, uint32_t* val)
 {
+  // Step 1: Create a set point message
   hcb_msg_set_t message = { .header.report_id = 2,
     .header.message_id = HCB_ID_SET_POINT,
     .header.byte_count = sizeof(hcb_msg_set_t),
     .header.crc = 0 };
 
+  // Step 2: Copy set point values to the message
   for (int i = 0; i < 8; ++i)
   {
     message.val[i] = val[i];
   }
 
+  // Step 3: Calculate CRC (Cyclic Redundancy Check) for the message
   hcb_protocol_t* ptr = (hcb_protocol_t*)&message;
 
   uint8_t crc2 = crc8ccitt(ptr->raw, ptr->header.byte_count);
   message.header.crc = crc2;
 
+  // Step 4: Send the set point message using the hid_write function
   return hid_write(handle, ptr->raw, message.header.byte_count);
 }
 
+
+
+
+
 /**
- * @brief
+ * @brief                 File descriptor for the HID device.
  *
- * @param [in] handle
- * @return [out] int
+ * @param [in] handle     File descriptor for the HID device.
+ * @return [out] int    
  */
 int hcb_read_packet(void* handle, void* buf)
 {
 
+  // Step 1: Read a packet from the HID device
   int res
       = hid_read(handle, ((hcb_protocol_t*)buf)->raw, sizeof(hcb_protocol_t));
   if (res <= 0)
     return res;
 
+  // Step 2: Validate CRC (Cyclic Redundancy Check)
   uint8_t crc8 = ((hcb_protocol_t*)buf)->header.crc;
   ((hcb_protocol_t*)buf)->header.crc = 0;
   ((hcb_protocol_t*)buf)->header.crc = crc8ccitt(
       ((hcb_protocol_t*)buf)->raw, ((hcb_protocol_t*)buf)->header.byte_count);
 
+  // Step 3: Compare the calculated CRC with the received CRC
   if (crc8 == ((hcb_protocol_t*)buf)->header.crc)
     return 1;
 
   return 0;
 }
 
+
+
+
+
 /**
- * @brief
+ * @brief         Opens a connection to the HID device.
  *
- * @param vendor_id
- * @param product_id
+ * @param vendor_id   Vendor ID of the HID device.
+ * @param product_id  Product ID of the HID device.
  * @return int
  */
 void* hcb_open(unsigned short vendor_id, unsigned short product_id)
@@ -193,24 +220,34 @@ void* hcb_open(unsigned short vendor_id, unsigned short product_id)
   return hid_open(0x2fe3, 0x0100, NULL);
 }
 
+
+
+
+
 /**
- * @brief
+ * @brief        Closes the connection to the HID device.
  *
  * @param fd
  * @return int
  */
+
+// Closes the connection to the HID device using the hid_close function.
 void hcb_close(void* handle)
 {
   hid_close(handle);
 }
 
+
+
+
+
 /**
- * @brief
+ * @brief          Retrieves ADC (Analog-to-Digital Converter) data from the HID device.
  *
  * @param dev
- * @param adc
- * @param len
- * @return int
+ * @param adc      Array to store the ADC data.
+ * @param len      Length of the ADC data array.
+ * @return int     Returns 0 (not implemented).
  */
 int hcb_get_adc(int fd, uint16_t* adc, int len)
 {
