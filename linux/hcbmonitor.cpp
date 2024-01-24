@@ -4,9 +4,11 @@
 #include <iostream>
 #include <string>
 
+
 #include "hcb_protocol.h"
-#include "hcbapi.h"
-#include "unistd.h"
+#include "hcbapi.h"         // Contain definitions and declarations related to a custom communication protocol
+#include "unistd.h"         // Provides access to the POSIX operating system API.
+
 #include <atomic>
 #include <chrono>
 #include <iostream>
@@ -17,14 +19,14 @@
 
 #include <signal.h>
 // It is important ncurses is defined last... does strange things with "OK"
-#include <ncurses.h>
+#include <ncurses.h>  // This line includes the ncurses library for creating text-based user interfaces in a console window.
 
 #ifndef MILLISLEEP
-#define MILLISLEEP(X)                                                          \
-  do                                                                           \
-  {                                                                            \
-    std::chrono::milliseconds tim2((X));                                       \
-    std::this_thread::sleep_for(tim2);                                         \
+#define MILLISLEEP(X)                        //Defination of macro which represents the number of milliseconds to sleep                                   
+  do                                                                           
+  {                                                                            
+    std::chrono::milliseconds tim2((X));     //This represents the duration of time to sleep in milliseconds.          
+    std::this_thread::sleep_for(tim2);       //Pause the execution of the current thread for the specified duration         
   } while (0)
 #endif
 
@@ -32,23 +34,31 @@ class hcb_driver
 {
 
 public:
+
+  // Constructor: Initializes member variables
   hcb_driver() : handle() { }
+
+  // Destructor: Stops the communication thread and closes the device handle
   ~hcb_driver()
   {
     stopThread();
     hcb_close(handle);
   }
 
+  // Connects to the device and starts the communication thread
   void connect()
   {
     handle = hcb_open(0x2fe3, 0x100);
     spawn_thread();
   }
 
+  // Sends a "hello" command to the device
   void send_hello() { hcb_send_hello(handle); }
 
+  // Sends a set point to the device
   void send_set_point(uint32_t val[])
   {
+    // Use a mutex to protect shared resources during multithreaded access
     std::lock_guard<std::mutex> guard(mtx);
     hcb_set(handle, val);
   }
@@ -66,17 +76,22 @@ public:
           switch (msg.header.message_id)
           {
             case HCB_ID_COMMAND:
+                // Handle command message
               break;
             case HCB_ID_HELLO_REPLY:
+                // Handle hello reply message
               break;
             case HCB_ID_UNSOLICITED_TIME:
+                // Handle unsolicited time message
               break;
             case HCB_ID_ADC:{
+                 // Use a mutex to protect shared resources during multithreaded access
               std::lock_guard<std::mutex> guard(mtx);
               memcpy(&this->currRead, &msg.adc, sizeof(hcb_msg_adc_t));
               break;
             }
             case HCB_ID_FT:
+                // Handle force/torque message
               memcpy(&this->currftRead, &msg.ft, sizeof(hcb_msg_ft_t));
               break;
           }
@@ -84,7 +99,8 @@ public:
       }
     });
   }
-
+  
+  // Stops the communication thread
   void stopThread()
   {
     this->continuing = false;
@@ -93,105 +109,127 @@ public:
       this->workerThread.join();
     }
   }
-
+  
+  // Gets the latest ADC (Analog-to-Digital Converter) data
   hcb_msg_adc_t getAdc()
   {
+     // Use a mutex to protect shared resources during multithreaded access
     std::lock_guard<std::mutex> guard(mtx);
     return currRead;
   }
 
+  // Gets the latest force/torque data
   hcb_msg_ft_t getFt() {return currftRead;}
 
 private:
-  void* handle;
-  std::thread workerThread {};
-  std::atomic<bool> continuing { true };
-  hcb_msg_adc_t currRead {};
-  std::mutex mtx;
-  hcb_msg_ft_t currftRead {};
+  void* handle;                          // Device handle
+  std::thread workerThread {};           // Thread for communication
+  std::atomic<bool> continuing { true }; // Atomic flag for thread continuation
+  hcb_msg_adc_t currRead {};             // Latest ADC data
+  std::mutex mtx;                        // Mutex for protecting shared resources
+  hcb_msg_ft_t currftRead {};            // Latest force/torque data
 };
 
+// Instantiate an instance of the hcb_driver class
 hcb_driver hcb;
+
+// Additional variables for storing ADC and force/torque data
 hcb_msg_adc_t currRead {};
 hcb_msg_ft_t currftRead;
+
+// Array for storing set point values
 uint32_t val[8] { 0,0,0 ,0,0,0, 0,0};
 
 /////////////////////////////////////////////////////////////
+// Constant string representing the main title
 const char mainTitle[] = "HCB MONITOR";
+
+// Macro to calculate the length of the main title
 #define TITLELEN (sizeof(mainTitle) / sizeof(char))
 
+// Constant string representing an error message
 const char errMsg[] = "Enlarge your Console !!!";
+
+// Macro to calculate the length of the error message
 #define ERRLEN (sizeof(errMsg) / sizeof(char))
 
-#define CENTER_X(dimx, len)                                                    \
+// Macro to center the title or error message horizontally on the console
+#define CENTER_X(dimx, len) \
   ((dimx) > ((int)len) ? (dimx) / 2 - ((int)len) / 2 : 0)
+
 
 /////////////////////////////////////////////////////////////
 /**
- * @brief
+ * @brief Signal handler for SIGINT (Ctrl+C)
  *
+ * @param[in] Unused parameter (required for signal handler)
  */
 static void finish(int)
 {
-  endwin();
+  endwin();    // Close the curses library
   /* do your non-curses wrapup here */
-  exit(0);
-}
+  exit(0);    // Exit the program with code 0
+} 
 
 /**
- * Init the terminal screen
+ *  Initialize the terminal screen using curses library
  */
 void initScreen()
 {
-  initscr();
-  (void)signal(SIGINT, finish); /* arrange interrupts to terminate */
-  keypad(stdscr, TRUE);         /* We get F1, F2 etc..          */
-  noecho();
-  curs_set(FALSE);
-  timeout(40);
-  cbreak();
+  initscr();                    // Initialize the curses library
+  (void)signal(SIGINT, finish); /* arrange interrupts to terminate */  // Set the signal handler for SIGINT to the finish function
+  keypad(stdscr, TRUE);         /* We get F1, F2 etc..          */     // Enable special keys like F1, F2, etc.
+  noecho();                     // Don't echo keypresses to the screen
+  curs_set(FALSE);              // Hide the cursor
+  timeout(40);                  // Set a timeout for getch() to 40 milliseconds
+  cbreak();                     // Disable line buffering (receive keypresses immediately)
 }
 
+
+// Enumeration representing UI states
 enum UI_Top_State
 {
   MAIN_MENU,
 };
 
 /**
- * @brief stuff for the TUI
+ * @brief Structure representing the context of the terminal user interface (TUI)
  *
  */
-struct Context
+struct Context //manualization of the terminal context
 {
-  UI_Top_State state = MAIN_MENU;
-  std::string infoRow = "";
-  std::string titleRow = "";
-  float lastTime { 0.f };
-  float timestamp { 0.f };
-  int32_t position { 0 };
-  bool warning { false };
-  bool error { false };
-  int new_x {};              //< x dimension of the terminal
-  int new_y {};              //< y dimension of the termanal
-  bool logEnabled { false }; //< Am I logging
-  bool prevCalibOnGoing { false };
-  bool calibOnGoing { false };
+  UI_Top_State state = MAIN_MENU; // Initial state is MAIN_MENU
+  std::string infoRow = "";       // String for informational messages
+  std::string titleRow = "";      // String for title or header
+  float lastTime { 0.f };         // Last timestamp
+  float timestamp { 0.f };        // Current timestamp
+  int32_t position { 0 };         // Position indicator
+  bool warning { false };         // Flag for warning state
+  bool error { false };           // Flag for error state
+  int new_x {};                   // x dimension of the terminal
+  int new_y {};                   // y dimension of the terminal
+  bool logEnabled { false };      // Flag indicating if logging is enabled
+  bool prevCalibOnGoing { false }; // Previous calibration state
+  bool calibOnGoing { false };     // Current calibration state
 };
 
-static Context context;
+static Context context; // Static instance of the Context structure
 
 //******************************************
 // MAIN_MENU STATUS
 
+// Function to display the main menu and return the next row
 int mainMenuDisplay(int firstRow)
 {
   auto row = firstRow;
   return ++row;
 }
 
+// Constants defining the maximum and minimum values for microseconds
 #define MAX_USEC 8330u
 #define MIN_USEC 0u
 
+// Functions to increment and decrement values by 10 and 1, respectively
 void incv_10(uint32_t& v)
 {
   v += 10;
@@ -215,10 +253,17 @@ void decv_1(uint32_t& v)
   v = std::clamp(v, MIN_USEC, MAX_USEC);
 }
 
+// Function to handle user input in the main menu
 void mainMenuInputHandler(int ch)
 {
+    // Switch statement to handle different keypresses
   switch (ch)
   {
+
+    // Increment and decrement values for different parameters based on keypresses
+    // 'w', 's', 'W', 'S' handle val[0]
+    // 'e', 'd', 'E', 'D' handle val[1]
+    // ...
     case 'w':
       incv_10(val[0]);
       break;
@@ -324,27 +369,35 @@ void mainMenuInputHandler(int ch)
       break;
     
     case 'q':
+    // Increment all values by 10
     for(int i = 0; i <= 5; i++){
       incv_10(val[i]);
     }
     break;
+
     case 'a':
+     // Decrement all values by 10
     for(int i = 0; i <= 5; i++){
       decv_10(val[i]);
     }
     break;
+
     case 'Q':
+    // Increment all values by 1
     for(int i = 0; i <= 5; i++){
       incv_1(val[i]);
     }
     break;
+
     case 'A':
+    // Decrement all values by 1
     for(int i = 0; i <= 5; i++){
       decv_1(val[i]);
     }
     break;
 
 
+    // Additional cases for special keys (not explained in the comments)
     case KEY_F(3):
       break;
     case KEY_F(4):
@@ -367,11 +420,13 @@ void mainMenuInputHandler(int ch)
 //####################
 //******************************************
 
+// Function to select and display the appropriate menu based on the UI state
 int menuDisplay(int firstRow)
 {
   switch (context.state)
   {
     case MAIN_MENU:
+      // Call the mainMenuDisplay function and return the updated row
       return mainMenuDisplay(firstRow);
       break;
   }
@@ -379,26 +434,31 @@ int menuDisplay(int firstRow)
 }
 
 /**/
+// Function to display context-related information in the terminal
 int displayContextRows(int firstRow)
 {
+    // Check if an update is needed
   if (context.lastTime <= context.timestamp)
     return firstRow;
 
   auto row = firstRow;
+
+  // Display the title row with bold formatting
   attron(A_BOLD);
   mvprintw(row++, 2, context.titleRow.c_str());
   attroff(A_BOLD);
 
+  // Display the information row
   mvprintw(row, 0, " %s ", context.infoRow.c_str());
 
   return ++row;
 }
 
 /**
- * @brief
+ * @brief  Convert ADC values from bananas to bars
  *
- * @param firstRow
- * @return int
+ * @param firstRow  val_p ADC value in bananas
+ * @return uint32_t ADC value in bars
  */
 uint32_t fromBananasToBar(uint16_t val_p){
   int32_t valbar = ((val_p - 400)*350)/1600;
@@ -409,15 +469,18 @@ uint32_t fromBananasToBar(uint16_t val_p){
 uint32_t fromBananasTomillAmper(uint16_t val_c){
   return (uint32_t)((val_c * 1.25)/(0.05*20*2));
 }
+// Function to display periodic updates in the terminal
 int periodicDisplay(int firstRow)
 {
   auto row = firstRow;
+
+  // Display ADC Data
   attron(A_BOLD);
   mvprintw(row++, 2, "Adc Data");
   attroff(A_BOLD);
    mvprintw(row++, 00, "            % 6d     % 6d     % 6d     % 6d     % 6d     % 6d     % 6d     % 6d",1,2,3,4,5,6,7,8);
   
-
+  // Display ADC values converted to bars and milliamperes
   mvprintw(++row, 00, "adc [%d]   : % 6d bar % 6d bar % 6d bar % 6d bar % 6d bar % 6d bar % 6d bar % 6d bar",
   0, fromBananasToBar(currRead.val[0]), fromBananasToBar(currRead.val[1]),
   fromBananasToBar(currRead.val[2]), fromBananasToBar(currRead.val[3]),
@@ -429,6 +492,8 @@ int periodicDisplay(int firstRow)
     fromBananasTomillAmper(currRead.val[2 + (2 * 8)]), fromBananasTomillAmper(currRead.val[3 + (2 * 8)]),
     fromBananasTomillAmper(currRead.val[4 + (2 * 8)]), fromBananasTomillAmper(currRead.val[5 + (2 * 8)]),
     fromBananasTomillAmper(currRead.val[6 + (2 * 8)]), fromBananasTomillAmper(currRead.val[7 + (2 * 8)]));
+
+  // Display Pwm values  
   attron(A_BOLD);
   row += 2;
   mvprintw(row++, 2, "Pwm");
@@ -439,13 +504,16 @@ int periodicDisplay(int firstRow)
   currRead.val[4 + (1 * 8)], currRead.val[5 + (1 * 8)],
   currRead.val[6 + (1 * 8)], currRead.val[7 + (1 * 8)]);
 
+  // Display Setpoint Data
   row += 2;
   mvprintw(row++, 2, "Setpoint Data");
   attroff(A_BOLD);
   mvprintw(++row, 00, "Setpoint [us]: % 6d  % 6d  % 6d  % 6d  % 6d  % 6d  % 6d  % 6d",
       val[0], val[1], val[2], val[3], val[4], val[5], val[6], val[7]);
   mvprintw(++row, 00, "cmds                w/s     e/d     r/f    t/g     y/h     u/j     i/k     o/l ");
-  
+
+
+  // Display Force & Torque values
   row += 2;
   mvprintw(row++, 2, "Force & Torque");
 
@@ -457,7 +525,7 @@ int periodicDisplay(int firstRow)
   return ++row;
 }
 /**
- * @brief
+ * @brief  Displays status lines at the bottom of the screen.
  *
  * @return int
  */
@@ -465,16 +533,19 @@ int statusLines()
 {
   auto row = context.new_y - 1;
 
+  // Display "Enable/Disable Log" status
   attron(A_BOLD | A_REVERSE);
   mvprintw(row, 0, "F1");
   attroff(A_BOLD | A_REVERSE);
   mvprintw(row, 2, context.logEnabled ? " Disable Log" : " Enable Log ");
-
+  
+  // Display "Main Menu" status
   attron(A_BOLD | A_REVERSE);
   mvprintw(row, 25, "m");
   attroff(A_BOLD | A_REVERSE);
   mvprintw(row, 26, " Main Menu");
-
+  
+  // Display "Quit" status
   attron(A_BOLD | A_REVERSE);
   mvprintw(row, 37, "q");
   attroff(A_BOLD | A_REVERSE);
@@ -484,7 +555,7 @@ int statusLines()
 }
 
 /**
- * Draw the current screen
+ * Draw the current screen based on the context and menu displays.
  **/
 void drawScreen()
 {
@@ -492,7 +563,8 @@ void drawScreen()
   getmaxyx(stdscr, new_y, new_x);
   context.new_x = new_x;
   context.new_y = new_y;
-
+ 
+  // If the screen size is too small, display an error message
   if (new_x < 80 || new_y < 25)
   {
     attron(A_BOLD);
@@ -500,25 +572,28 @@ void drawScreen()
     attroff(A_BOLD);
     return;
   }
-
+  
+  // Display the main title
   attron(A_BOLD);
   mvprintw(1, CENTER_X(new_x, TITLELEN), mainTitle);
   attroff(A_BOLD);
 
+  // Display the menu and context information
   auto nextRow = menuDisplay(3);
 
   nextRow = periodicDisplay(++nextRow);
 
   nextRow = displayContextRows(++nextRow);
-
+  
+  // Display status lines at the bottom
   statusLines();
 }
 
 /**
- * @brief
+ * @brief  Handles user input based on the current state.
  *
- * @param hemc
- * @param ch
+ * @param hemc 
+ * @param ch The input chapter.
  * @return true continue program
  * @return false exit from the program
  */
@@ -532,18 +607,21 @@ bool handleInput(int ch)
 
   if (ch == KEY_F(1))
   {
+    // Toggle log status on F1
     context.logEnabled = !context.logEnabled;
-    // TODO logging stuff
+    // TODO: logging stuff
     return true;
 
-  } else if (ch == 'x')
+  } else if (ch == 'x') // Exit program on 'x'
   {
     return false;
   } else if (ch == 'm')
   {
-    context.state = MAIN_MENU;
+    context.state = MAIN_MENU; // Switch to Main Menu on 'm'
     return true;
   };
+
+  // Handle input based on the current state
   switch (context.state)
   {
     case MAIN_MENU:
@@ -556,7 +634,7 @@ bool handleInput(int ch)
 }
 
 /**
- * @brief main loop utility
+ * @brief main loop utility for the HCB Monitor.
  **/
 void hcb_loop()
 {
@@ -565,17 +643,21 @@ void hcb_loop()
   int ch = 0;
   do
   {
+    // Send set points, get ADC and Force/Torque data
     hcb.send_set_point(val);
     currRead = hcb.getAdc();
     currftRead = hcb.getFt();
+
+    // Refresh the screen
     erase();
     drawScreen();
 
     refresh();
+    // Get user input
     ch = getch();
-  } while (handleInput(ch));
+  } while (handleInput(ch)); // Continue loop based on user input
 
-  endwin();
+  endwin();// End curses mode
 }
 
 /**
@@ -588,6 +670,7 @@ int main(int, char**)
   
   try
   {
+    // Connect to the HCB board and start the main loop
     hcb.connect();
     hcb_loop();
   } catch (...)
