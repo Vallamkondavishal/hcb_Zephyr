@@ -518,7 +518,7 @@ int periodicDisplay(int firstRow)
   mvprintw(row++, 2, "Force & Torque");
 
   mvprintw(++row, 00, "F/T   : % 6d     % 6d     % 6d     % 6d     % 6d    % 6d ",
-  1, currftRead.val[0], currftRead.val[1],
+  currftRead.val[0], currftRead.val[1],
   currftRead.val[2], currftRead.val[3],
   currftRead.val[4], currftRead.val[5]);
   

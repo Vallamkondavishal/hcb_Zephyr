@@ -1,3 +1,7 @@
+/*
+ * This section includes necessary headers for the ADC subsystem, GPIO, SPI, and the Zephyr RTOS.
+ * It also includes headers for shell-related functionalities and standard C libraries.
+ */
 #include "adc_subsystem.h"
 
 #include <zephyr.h>
@@ -6,6 +10,8 @@
 #include <drivers/spi.h>
 #include <sys/printk.h>
 
+
+// SHELL STUFF
 #include <version.h>
 #include <assert.h>
 
@@ -13,8 +19,10 @@
 #include <shell/shell.h>
 #include <stdlib.h>
 
-// GPIO for chip select
-// PIN defines: should be in DTS
+/*
+ * GPIO configurations for chip select pins and control pins.
+ * These pin assignments are expected to be defined in the Device Tree Source (DTS).
+ */
 #define MCU_ADC_CS1_PORT "GPIOC"
 #define MCU_ADC_CS1_PIN	 5
 
@@ -31,6 +39,10 @@
 #define MCU_ADC_RST_PIN	 4
 
 // ADS8668 COMMANDS
+/*
+ * Definitions of ADS8668 ADC commands, including NO_OP, STANDBY, POWER_DOWN, RESET,
+ * AUTO_RESET, and manual channel selection commands (MAN_CH_0 to MAN_CH_7).
+ */
 #define ADS8668_CMD_NO_OP    0x00
 #define ADS8668_CMD_STANDBY  0x82
 #define ADS8668_CMD_PWR_DOWN 0x83
@@ -45,6 +57,10 @@
 #define ADS8668_CMD_MAN_CH_6 0xD8
 #define ADS8668_CMD_MAN_CH_7 0xDC
 
+
+/*
+ * Mapping of manual commands to ADC channels (CH_0 to CH_7) and channel ranges.
+ */
 // Manual Channel Selection Command
 static const uint8_t chMap[] = {
 	/* CH_0*/ ADS8668_CMD_MAN_CH_0,
@@ -57,6 +73,9 @@ static const uint8_t chMap[] = {
 	/* CH_7*/ ADS8668_CMD_MAN_CH_7,
 };
 
+/*
+ * Function to retrieve the manual command based on the ADC channel.
+ */
 static inline uint8_t getManualCommand(channel_t ch)
 {
 	return chMap[ch];
