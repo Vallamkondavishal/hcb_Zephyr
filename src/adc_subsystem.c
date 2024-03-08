@@ -2,22 +2,21 @@
  * This section includes necessary headers for the ADC subsystem, GPIO, SPI, and the Zephyr RTOS.
  * It also includes headers for shell-related functionalities and standard C libraries.
  */
-#include "adc_subsystem.h"
+#include "adc_subsystem.h"  // Include header file for ADC subsystem
 
-#include <zephyr.h>
-#include <device.h>
-#include <drivers/gpio.h>
-#include <drivers/spi.h>
-#include <sys/printk.h>
-
-
-// SHELL STUFF
-#include <version.h>
-#include <assert.h>
+#include <zephyr.h>  // Include Zephyr OS header
+#include <device.h>  // Include device header for device management
+#include <drivers/gpio.h>  // Include GPIO driver header
+#include <drivers/spi.h>  // Include SPI driver header
+#include <sys/printk.h>  // Include printk header for printing
 
 // SHELL STUFF
-#include <shell/shell.h>
-#include <stdlib.h>
+#include <version.h>  // Include version header for version information
+#include <assert.h>  // Include assert header for assertion functionality
+
+// SHELL STUFF
+#include <shell/shell.h>  // Include shell header for shell functionality
+#include <stdlib.h>  // Include stdlib header for standard library functions
 
 /*
  * GPIO configurations for chip select pins and control pins.
@@ -123,9 +122,21 @@ struct adc_description {
 	uint32_t cs_pin;
 };
 
+/*
+ * Function: get_device
+ * ---------------------
+ * Retrieves the device description based on the specified ADC type.
+ *
+ * adc: The enum representing the ADC type (AD_1, AD_2, or AD_3).
+ *
+ * returns: A struct adc_description containing the device pointer and chip select pin.
+ */
 static struct adc_description get_device(enum adc_t adc)
 {
+	// Initialize the device description with default values
 	struct adc_description desc = { NULL, 0 };
+
+	// Switch case to handle different ADC types and assign corresponding device and chip select pin
 	switch (adc) {
 	case AD_1:
 		desc.cs_pin = MCU_ADC_CS1_PIN;
@@ -140,41 +151,60 @@ static struct adc_description get_device(enum adc_t adc)
 		desc.device = ad3_cs;
 		break;
 	default:
+	    // Handle unexpected ADC type
 		break;
 	}
+	// Return the device description
 	return desc;
 }
 
 //**********************************************************
 // SPI
 //**********************************************************
+
+/*
+ * Function: stm32_spi_send
+ * -------------------------
+ * Sends data over SPI communication using the specified SPI device and configuration.
+ *
+ * spi: Pointer to the SPI device structure.
+ * spi_cfg: Pointer to the SPI configuration structure.
+ * data: Pointer to the data buffer to be transmitted.
+ * len: Length of the data buffer.
+ *
+ * returns: Result of the SPI write operation.
+ */
 static int stm32_spi_send(struct device *spi, const struct spi_config *spi_cfg,
 			  const uint8_t *data, size_t len)
 {
-	const struct spi_buf_set tx = {
-		.buffers =
-			&(const struct spi_buf){
-				.buf = (uint8_t *)data,
-				.len = len,
-			},
-		.count = 1,
-	};
+    // Define a SPI buffer set for transmitting data
+    const struct spi_buf_set tx = {
+        .buffers =
+            &(const struct spi_buf){
+                .buf = (uint8_t *)data,  // Data buffer
+                .len = len,              // Length of the data buffer
+            },
+        .count = 1,  // Number of buffers in the set (only one buffer in this case)
+    };
 
-	return spi_write(spi, spi_cfg, &tx);
+    // Call the SPI write function to transmit the data
+    return spi_write(spi, spi_cfg, &tx);
 }
 
-static uint8_t rxmsg[2];
+// Define a receive buffer and set for receiving data
+static uint8_t rxmsg[2];  // Receive buffer
 static struct spi_buf rx = {
-	.buf = (uint8_t *)rxmsg,
-	.len = 2,
+    .buf = (uint8_t *)rxmsg,  // Data buffer for receiving
+    .len = 2,                  // Length of the data buffer
 };
 static const struct spi_buf_set rx_bufs = {
-	.buffers = &rx,
-	.count = 1,
+    .buffers = &rx,  // Pointer to the receive buffer
+    .count = 1,      // Number of buffers in the set (only one buffer in this case)
 };
 
-struct spi_config spi_cfg = {};
-struct device *spi;
+// Define a SPI configuration structure and SPI device pointer
+struct spi_config spi_cfg = {};  // Initialize SPI configuration structure
+struct device *spi;              // Pointer to the SPI device structure
 
 //**********************************************************
 
