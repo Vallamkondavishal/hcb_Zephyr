@@ -102,6 +102,9 @@ static const uint8_t chRangeMap[] = {
 	/* CH_7*/ ADS8668_CH_RANGE_7,
 };
 
+/*
+ * Function to retrieve the manual command based on the ADC channel range.
+ */
 static inline uint8_t getRangeReg(channel_t ch)
 {
 	return chRangeMap[ch];
@@ -208,19 +211,39 @@ struct device *spi;              // Pointer to the SPI device structure
 
 //**********************************************************
 
+/**
+ * @brief Send a command to the ADC device.
+ *
+ * @param adc The ADC device to send the command to.
+ * @param command The command byte to be sent.
+ * @return 0 on success, negative errno code on failure.
+ */
 static int adc_command(enum adc_t adc, uint8_t command)
 {
+	// Get the ADC device description based on the specified ADC.
 	struct adc_description adc_dev = get_device(adc);
+
+	// Set the chip select pin to low to initiate communication.
 	gpio_pin_set(adc_dev.device, adc_dev.cs_pin, 0);
+
+	// Prepare the command byte to be sent along with a dummy byte for receiving data.
 	uint8_t buf[] = { command, 0x00 };
+
+	// Send the command bytes via SPI.
 	int err = stm32_spi_send(spi, &spi_cfg, buf, sizeof(buf));
+
+	// Set the chip select pin back to high to end communication.
 	gpio_pin_set(adc_dev.device, adc_dev.cs_pin, 1);
+
+	// Return the result of the SPI transmission.
 	return err;
 }
 
 /**
- * @brief
+ * @brief Initializes the ADC and DAC devices.
  *
+ * This function initializes the ADC and DAC devices by powering them on,
+ * configuring their chip selects, and initializing the SPI communication.
  */
 void adc_init()
 {
@@ -259,6 +282,7 @@ void adc_init()
 
 	spi_cfg.frequency = 1200000U;
 
+    // Delay for SPI initialization
 	k_sleep(K_MSEC(10));
 
 	spi_cfg.cs = NULL;
@@ -274,81 +298,129 @@ void adc_hw_reset()
 }
 
 /**
- * @brief
+ * @brief Reads a register from the ADS8668 ADC.
  *
- * @param adc
- * @param reg
- * @return uint8_t
+ * This function reads a register from the ADS8668 ADC specified by the `adc` parameter.
+ *
+ * @param adc The ADC device to read from.
+ * @param reg The register address to read.
+ * @return The value read from the specified register.
  */
 uint8_t ads8668_read_reg(adc_t adc, uint8_t reg)
 {
+	// Get the ADC device description based on the specified ADC.
 	struct adc_description adc_dev = get_device(adc);
 
+    // Prepare the command byte and a dummy byte for receiving data.
 	uint8_t buf[] = { (reg << 1) & 0xfe, 0xaa };
+
+	// Set the chip select pin to low to initiate communication.
 	gpio_pin_set(adc_dev.device, adc_dev.cs_pin, 0);
+
+    // Send the command bytes via SPI and read the response.
 	int err = stm32_spi_send(spi, &spi_cfg, buf, sizeof(buf));
 	int res = spi_read(spi, &spi_cfg, &rx_bufs);
+
+
 	(void) res;
 	(void) err;
+
+	// Set the chip select pin back to high to end communication.
 	gpio_pin_set(adc_dev.device, adc_dev.cs_pin, 1);
 
+    // Return the value read from the specified register.
 	return ((uint8_t *)(rx_bufs.buffers->buf))[0];
 }
 
 /**
- * @brief Acquire a channel in manual mode
- * 
- * @param adc the adc
- * @param ch the channel
- * @return int 0 if ok 
+ * @brief Acquires a channel in manual mode.
+ *
+ * This function acquires data from the specified channel in manual mode.
+ *
+ * @param adc The ADC device.
+ * @param ch The channel number to acquire.
+ * @return 0 if acquisition is successful, otherwise an error code.
  */
 int ads8668_acquire(enum adc_t adc, uint8_t ch)
-{
+{   
+	// Get the ADC device description based on the specified ADC.
 	struct adc_description adc_dev = get_device(adc);
-	uint8_t channelAddress = getManualCommand(ch);
 
+	// Get the address for the specified channel in manual mode.
+	uint8_t channelAddress = getManualCommand(ch);
+    
+	// Prepare the command byte and a dummy byte for receiving data.
 	uint8_t buf[] = { channelAddress, 0x00 };
+
+	// Set the chip select pin to low to initiate communication.
 	gpio_pin_set(adc_dev.device, adc_dev.cs_pin, 0);
+
+	// Send the command bytes via SPI and read the response.
 	int err = stm32_spi_send(spi, &spi_cfg, buf, sizeof(buf));
+
+	// Ignore the error for now (TODO: handle errors properly)
 	(void) err; // TODO
 	int res = spi_read(spi, &spi_cfg, &rx_bufs);
-	(void) res; // TODO
-	gpio_pin_set(adc_dev.device, adc_dev.cs_pin, 1);
 
+	// Ignore the result for now (TODO: handle data properly)
+	(void) res; // TODO
+
+	// Set the chip select pin back to high to end communication.
+	gpio_pin_set(adc_dev.device, adc_dev.cs_pin, 1);
+    
+	// Extract and return the acquired data from the response.
 	return (((((uint8_t *)(rx_bufs.buffers->buf))[0] << 4) & 0x0ff0) |
 		((0x00f0 & ((uint8_t *)(rx_bufs.buffers->buf))[1]) >> 4));
 }
 
 /**
- * @brief 
- * 
- * @param adc 
- * @param ch 
- * @param ch_range 
- * @return int 
+ * @brief Sets the range for a specified channel.
+ *
+ * This function sets the range for the specified channel of the ADC.
+ *
+ * @param adc The ADC device.
+ * @param ch The channel number to set the range for.
+ * @param ch_range The range to set for the channel.
+ * @return 0 if setting the range is successful, otherwise an error code.
  */
 int ads8668_set_range(adc_t adc, uint8_t ch, ch_range_t ch_range)
 {
+	// Call the ads8668_write_reg function to write the range to the register.
+    // Passes the ADC device, the register corresponding to the channel, and the specified range.
 	return ads8668_write_reg(adc, getRangeReg(ch), ch_range);
 }
 
 /**
- * @brief
- * 
- * @param adc
- * @param reg
- * @param data
+ * @brief Writes data to a register of the ADS8668 ADC.
+ *
+ * This function writes data to the specified register of the ADS8668 ADC.
+ *
+ * @param adc The ADC device.
+ * @param reg The register address to write to.
+ * @param data The data to write to the register.
+ * @return 0 if writing to the register is successful, otherwise an error code.
  */
 int ads8668_write_reg(enum adc_t adc, uint8_t reg, uint8_t data)
 {
+	// Get the ADC device description based on the specified ADC.
 	struct adc_description adc_dev = get_device(adc);
 
+    // Prepare the command byte and data byte for writing to the register.
 	uint8_t buf[] = { (reg << 1) | ADS8668_WRITE, data };
-	gpio_pin_set(adc_dev.device, adc_dev.cs_pin, 0);
-	int err = stm32_spi_send(spi, &spi_cfg, buf, sizeof(buf));
-	int res = spi_read(spi, &spi_cfg, &rx_bufs);
-	gpio_pin_set(adc_dev.device, adc_dev.cs_pin, 1);
 
+	// Set the chip select pin to low to initiate communication.
+	gpio_pin_set(adc_dev.device, adc_dev.cs_pin, 0);
+
+	// Send the command bytes via SPI to write to the register.
+	int err = stm32_spi_send(spi, &spi_cfg, buf, sizeof(buf));
+
+	// Read the response (not used for writing operation).
+	int res = spi_read(spi, &spi_cfg, &rx_bufs);
+
+	// Set the chip select pin back to high to end communication.
+	gpio_pin_set(adc_dev.device, adc_dev.cs_pin, 1);
+    
+	// Ignore the response and return the result of the SPI transmission.
 	(void) res;
 	return err;
 }
@@ -364,96 +436,174 @@ int ads8668_standby_command(enum adc_t adc)
 }
 
 // SHELL
+
+/**
+ * @brief Command handler for writing data to a register.
+ *
+ * This function handles the shell command to write data to a register of the ADS8668 ADC.
+ *
+ * @param shell Pointer to the shell instance.
+ * @param argc Number of arguments passed to the command.
+ * @param argv Array of strings containing the arguments passed to the command.
+ * @return 0 if the command is executed successfully, otherwise an error code.
+ */
 static int cmd_write(const struct shell *shell, size_t argc, char **argv)
 {
+	// Check the number of arguments passed to the command.
 	(void)argc;
+
+	// Parse the arguments to obtain the ADC, register, and data values.
 	unsigned long int ad = strtoul(argv[1], NULL, 0);
 	unsigned long int reg = strtoul(argv[2], NULL, 0);
 	unsigned long int data = strtoul(argv[3], NULL, 0);
-
+    
+	// Check if the ADC value is within the valid range.
 	if (ad >= AD_MAX) {
 		shell_error(shell, "Wrong ad %d", ad);
-		return -EINVAL;
+		return -EINVAL;// Return error code if the ADC value is invalid.
 	}
-
+    
+	// Write data to the specified register of the ADS8668 ADC.
 	ads8668_write_reg(ad, reg, data);
 
-	return 0;
+	return 0;// Return success code.
 }
 
+/**
+ * @brief Command handler for setting the range of a channel.
+ *
+ * This function handles the shell command to set the range of a channel for the ADS8668 ADC.
+ *
+ * @param shell Pointer to the shell instance.
+ * @param argc Number of arguments passed to the command.
+ * @param argv Array of strings containing the arguments passed to the command.
+ * @return 0 if the command is executed successfully, otherwise an error code.
+ */
 static int cmd_range(const struct shell *shell, size_t argc, char **argv)
 {
+
+	// Check the number of arguments passed to the command.
 	(void)argc;
+
+	// Parse the arguments to obtain the ADC, channel, and range values.
 	unsigned long int ad = strtoul(argv[1], NULL, 0);
 	unsigned long int ch = strtoul(argv[2], NULL, 0);
 	unsigned long int range = strtoul(argv[3], NULL, 0);
 
+    // Check if the ADC value is within the valid range.
 	if (ad >= AD_MAX) {
 		shell_error(shell, "Wrong ad %d", ad);
-		return -EINVAL;
+		return -EINVAL;// Return error code if the ADC value is invalid.
 	}
-
+    
+	// Set the range of the specified channel for the ADS8668 ADC.
 	ads8668_set_range(ad, ch, range);
 
-	return 0;
+	return 0;// Return success code.
 }
 
+/**
+ * @brief Command handler for reading data from a register.
+ *
+ * This function handles the shell command to read data from a register of the ADS8668 ADC.
+ *
+ * @param shell Pointer to the shell instance.
+ * @param argc Number of arguments passed to the command.
+ * @param argv Array of strings containing the arguments passed to the command.
+ * @return 0 if the command is executed successfully, otherwise an error code.
+ */
 static int cmd_read(const struct shell *shell, size_t argc, char **argv)
 {
+	// Check the number of arguments passed to the command.
 	(void)argc;
 
+	// Parse the arguments to obtain the ADC and register values.     
 	unsigned long int ad = strtoul(argv[1], NULL, 0);
 	unsigned long int reg = strtoul(argv[2], NULL, 0);
-
+    
+	// Check if the ADC value is within the valid range.
 	if (ad >= AD_MAX) {
 		shell_error(shell, "Wrong ad %d", ad);
-		return -EINVAL;
+		return -EINVAL;// Return error code if the ADC value is invalid.
 	}
-
+    
+	// Read data from the specified register of the ADS8668 ADC.
 	uint8_t result = ads8668_read_reg(ad, reg);
-
+    
+	// Print the result to the shell.
 	shell_fprintf(shell, SHELL_VT100_COLOR_DEFAULT,
 		      "ad[%d] - reg 0x%02x: 0x%02x\n", ad, reg, result);
 
-	return 0;
+	return 0;// Return success code.
 }
 
+/**
+ * @brief Command handler for acquiring data from a channel.
+ *
+ * This function handles the shell command to acquire data from a channel of the ADS8668 ADC.
+ *
+ * @param shell Pointer to the shell instance.
+ * @param argc Number of arguments passed to the command.
+ * @param argv Array of strings containing the arguments passed to the command.
+ * @return 0 if the command is executed successfully, otherwise an error code.
+ */
 static int cmd_acq(const struct shell *shell, size_t argc, char **argv)
 {
+	// Check the number of arguments passed to the command.
 	(void)argc;
+
+	// Parse the arguments to obtain the ADC and channel values.
 	unsigned long int ad = strtoul(argv[1], NULL, 0);
 	unsigned long int ch = strtoul(argv[2], NULL, 0);
-
+    
+	// Check if the ADC value is within the valid range.
 	if (ad >= AD_MAX) {
 		shell_error(shell, "Wrong ad %d", ad);
-		return -EINVAL;
+		return -EINVAL;// Return error code if the ADC value is invalid.
 	}
-
+    
+	// Acquire data from the specified channel of the ADS8668 ADC.
 	int result = ads8668_acquire(ad, ch);
-
+    
+	// Print the result to the shell.
 	shell_fprintf(shell, SHELL_VT100_COLOR_DEFAULT,
 		      "acquire ad[%d] - ch 0x%02x: 0x%02x\n", ad, ch, result);
 
-	return 0;
+	return 0;// Return success code.
 }
 
+/**
+ * @brief Command handler for resetting the ADS8668 ADC.
+ *
+ * This function handles the shell command to reset the ADS8668 ADC.
+ *
+ * @param shell Pointer to the shell instance.
+ * @param argc Number of arguments passed to the command.
+ * @param argv Array of strings containing the arguments passed to the command.
+ * @return 0 if the command is executed successfully, otherwise an error code.
+ */
 static int cmd_reset(const struct shell *shell, size_t argc, char **argv)
-{
+{ 
+	// Check the number of arguments passed to the command.
 	(void)argc;
-
+    
+	// Parse the argument to obtain the ADC value.
 	unsigned long int ad = strtoul(argv[1], NULL, 0);
-
+    
+	// Check if the ADC value is within the valid range.
 	if (ad >= AD_MAX) {
 		shell_error(shell, "Wrong ad %d", ad);
-		return -EINVAL;
+		return -EINVAL; // Return error code if the ADC value is invalid.
 	}
 
+    // Issue the reset command to the specified ADC.
 	uint8_t result = ads8668_reset_command(ad);
 
+    // Print the result to the shell.
 	shell_fprintf(shell, SHELL_VT100_COLOR_DEFAULT,
 		      "Reset ad[%d] - 0x%02x\n", ad, result);
 
-	return 0;
+	return 0; // Return success code.
 }
 
 // DAC STUFF
@@ -461,100 +611,185 @@ static int cmd_reset(const struct shell *shell, size_t argc, char **argv)
 #define MAX5714_CLEAR 0x50
 #define MAX5714_RESET 0x51
 
+/**
+ * @brief Set the output value of the MAX5714 DAC.
+ *
+ * This function sets the output value of the MAX5714 DAC based on the provided parameters.
+ *
+ * @param mode Command mode for the DAC.
+ * @param output Output channel of the DAC.
+ * @param value Value to be set as the output voltage.
+ * @return 0 if the operation is successful, otherwise an error code.
+ */
 int max5714_set_value(max5714_cmd_mode_t mode, max5714_output_t output,
 		      int value)
 {
+	// Check if the value exceeds the maximum allowed value.
 	if (value > 4095)
-		return -1;
-
+		return -1; // Return error if the value is out of range.
+    
+	// Extract the MSB and LSN from the value.
 	uint8_t lsn = (value & 0xf) << 4;
 	uint8_t msb = value >> 4 & 0xff;
-
+    
+	// Construct the command byte.
 	uint8_t cmd = mode | output;
-
+    
+	// Prepare the data buffer.
 	char buf[4] = {};
 	buf[0] = cmd;
 	buf[1] = msb;
 	buf[2] = lsn;
 	buf[3] = 0x0;
+
+	// Select the DAC chip.
 	gpio_pin_set(dac_cs, MCU_DAC_CS_PIN, 0);
+
+	// Send the data over SPI.
 	int err = stm32_spi_send(spi, &spi_cfg, buf, 4);
+
+	// Deselect the DAC chip.
 	gpio_pin_set(dac_cs, MCU_DAC_CS_PIN, 1);
 
-	return err;
+	return err;// Return the result of the SPI transmission.
 }
 
+
+/**
+ * @brief Clear the output of the MAX5714 DAC.
+ *
+ * This function clears the output of the MAX5714 DAC by sending a clear command over SPI.
+ *
+ * @return 0 if the operation is successful, otherwise an error code.
+ */
 int max5714_clear()
 {
+	// Prepare the command buffer.
 	char buf[4] = {};
 	buf[0] = MAX5714_CLEAR;
+
+	// Select the DAC chip.
 	gpio_pin_set(dac_cs, MCU_DAC_CS_PIN, 0);
+
+	// Send the clear command over SPI.
 	int err = stm32_spi_send(spi, &spi_cfg, buf, 4);
+
+	// Deselect the DAC chip.
 	gpio_pin_set(dac_cs, MCU_DAC_CS_PIN, 1);
 
-	return err;
-}
-
-int max5714_reset()
-{
-	char buf[4] = {};
-	buf[0] = MAX5714_RESET;
-	gpio_pin_set(dac_cs, MCU_DAC_CS_PIN, 0);
-	int err = stm32_spi_send(spi, &spi_cfg, buf, 4);
-	gpio_pin_set(dac_cs, MCU_DAC_CS_PIN, 1);
-
-	return err;
+	return err;// Return the result of the SPI transmission.
 }
 
 /**
- * @brief drive a DAC output
- * uses MAX5714_CMD_CODEn_LOADn to mode to do it
- * 
- * @param shell 
- * @param argc 
- * @param argv 
- * @return int 
+ * @brief Reset the MAX5714 DAC.
+ *
+ * This function resets the MAX5714 DAC by sending a reset command over SPI.
+ *
+ * @return 0 if the operation is successful, otherwise an error code.
+ */
+int max5714_reset()
+{
+	// Prepare the command buffer.
+	char buf[4] = {};
+	buf[0] = MAX5714_RESET;
+
+	 // Select the DAC chip.
+	gpio_pin_set(dac_cs, MCU_DAC_CS_PIN, 0);
+
+	// Send the reset command over SPI.
+	int err = stm32_spi_send(spi, &spi_cfg, buf, 4);
+
+	// Deselect the DAC chip.
+	gpio_pin_set(dac_cs, MCU_DAC_CS_PIN, 1);
+
+	return err;// Return the result of the SPI transmission.
+}
+
+/**
+ * @brief Command handler to set a DAC output using the MAX5714 DAC.
+ *
+ * This function sets a DAC output using the MAX5714 DAC based on the provided parameters.
+ *
+ * @param shell Pointer to the shell instance.
+ * @param argc Number of arguments passed to the command.
+ * @param argv Array of strings containing the arguments passed to the command.
+ * @return 0 if the operation is successful, otherwise an error code.
  */
 static int cmd_dac_set(const struct shell *shell, size_t argc, char **argv)
 {
+	// Check the number of arguments passed to the command.
 	(void)argc;
-
+    // Parse the arguments to obtain the output and value.
 	unsigned long int output = strtoul(argv[1], NULL, 0);
+    unsigned long int value = strtoul(argv[2], NULL, 0);
 
-	unsigned long int value = strtoul(argv[2], NULL, 0);
-
+    // Set the DAC output using the MAX5714 DAC.
 	int err = max5714_set_value(MAX5714_CMD_CODEn_LOADn, output, value);
-
+    
+	// Print the result to the shell.
 	shell_fprintf(shell, SHELL_VT100_COLOR_DEFAULT,
 		      "Set output %d using %d - argc %d\n", output, value);
 
-	return err;
+	return err; // Return the result of the operation.
 }
 
+/**
+ * @brief Command handler to clear the DAC output.
+ *
+ * This function clears the output of the MAX5714 DAC.
+ *
+ * @param shell Pointer to the shell instance.
+ * @param argc Number of arguments passed to the command.
+ * @param argv Array of strings containing the arguments passed to the command.
+ * @return 0 if the operation is successful, otherwise an error code.
+ */
 static int cmd_clear(const struct shell *shell, size_t argc, char **argv)
 {
+	// Check the number of arguments passed to the command.
 	(void)argc;
 	(void)argv;
-
+    
+	// Clear the DAC output.
 	int err = max5714_clear();
-
+    
+	// Print the result to the shell.
 	shell_fprintf(shell, SHELL_VT100_COLOR_DEFAULT, "Dac Clear\n");
 
-	return err;
+	return err;  // Return the result of the operation.
 }
 
+
+/**
+ * @brief Command handler to reset the MAX5714 DAC.
+ *
+ * This function resets the MAX5714 DAC.
+ *
+ * @param shell Pointer to the shell instance.
+ * @param argc Number of arguments passed to the command.
+ * @param argv Array of strings containing the arguments passed to the command.
+ * @return 0 if the operation is successful, otherwise an error code.
+ */
 static int cmd_dac_reset(const struct shell *shell, size_t argc, char **argv)
 {
+	// Check the number of arguments passed to the command.
 	(void)argc;
 	(void)argv;
-
+    
+	// Reset the MAX5714 DAC.
 	int err = max5714_reset();
-
+    
+	// Print the result to the shell.
 	shell_fprintf(shell, SHELL_VT100_COLOR_DEFAULT, "Dac Reset\n");
 
-	return err;
+	return err; // Return the result of the operation.
 }
 
+/**
+ * @brief Definition of subcommands for ADC shell commands.
+ *
+ * This macro creates a set of subcommands for ADC-related operations, including reading,
+ * writing, resetting, setting range, and acquiring channels.
+ */
 SHELL_STATIC_SUBCMD_SET_CREATE(adc_cmds,
 			       SHELL_CMD_ARG(read, NULL,
 					     "<ad_num> <reg>"
@@ -579,8 +814,19 @@ SHELL_STATIC_SUBCMD_SET_CREATE(adc_cmds,
 
 			       SHELL_SUBCMD_SET_END);
 
+/**
+ * @brief Registration of ADC shell commands.
+ *
+ * This macro registers the ADC shell commands along with their corresponding subcommands.
+ */
 SHELL_CMD_REGISTER(adc, &adc_cmds, "AD6886 shell commands", NULL);
 
+/**
+ * @brief Definition of subcommands for DAC shell commands.
+ *
+ * This macro creates a set of subcommands for DAC-related operations, including setting
+ * output, clearing, and resetting.
+ */
 SHELL_STATIC_SUBCMD_SET_CREATE(dac_cmds,
 			       SHELL_CMD_ARG(set, NULL,
 					     "<output> <val>"
@@ -596,4 +842,9 @@ SHELL_STATIC_SUBCMD_SET_CREATE(dac_cmds,
 					     cmd_dac_reset, 1, 0),
 			       SHELL_SUBCMD_SET_END);
 
+/**
+ * @brief Registration of DAC shell commands.
+ *
+ * This macro registers the DAC shell commands along with their corresponding subcommands.
+ */
 SHELL_CMD_REGISTER(dac, &dac_cmds, "DAC shell commands", NULL);
