@@ -445,7 +445,7 @@ int displayContextRows(int firstRow)
 
   // Display the title row with bold formatting
   attron(A_BOLD);
-  mvprintw(row++, 2, context.titleRow.c_str());
+  mvprintw(row++, 2 , " %s ", context.titleRow.c_str());
   attroff(A_BOLD);
 
   // Display the information row
